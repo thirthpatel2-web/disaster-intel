@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRIS v4.0 — Disaster Intelligence System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#03080d;--panel:#070e17;--panel2:#0b1520;--panel3:#0f1e2e;
+  --b1:#0d2236;--b2:#1a3a55;--b3:#2a5a7a;
+  --cyan:#00e5ff;--green:#00ff88;--red:#ff2244;--orange:#ff8c00;--yellow:#ffd600;--blue:#4488ff;--pink:#ff4488;
+  --text:#cce8f8;--text2:#7aaec8;--text3:#3d6880;--text4:#1e3d55;
+  --mono:'Share Tech Mono',monospace;--sans:'Rajdhani',sans-serif;
+  --glow-c:0 0 20px rgba(0,229,255,.35);--glow-g:0 0 20px rgba(0,255,136,.3);--glow-r:0 0 20px rgba(255,34,68,.4);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
+
+/* Animated background */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 50%,rgba(0,229,255,.03) 0%,transparent 70%),
+    radial-gradient(ellipse 40% 60% at 80% 30%,rgba(0,255,136,.02) 0%,transparent 70%),
+    repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(0,229,255,.015) 40px,rgba(0,229,255,.015) 41px),
+    repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(0,229,255,.015) 40px,rgba(0,229,255,.015) 41px);
+  animation:bgPulse 8s ease-in-out infinite;
+}
+@keyframes bgPulse{0%,100%{opacity:.6}50%{opacity:1}}
+
+/* Scanlines */
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.04) 3px,rgba(0,0,0,.04) 4px)}
+
+/* LAYOUT */
+.app{display:grid;grid-template-rows:56px 1fr;grid-template-columns:300px 1fr 340px;height:100vh;position:relative;z-index:1}
+
+/* ─── HEADER ─────────────────────────────────────────── */
+header{
+  grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:0 16px;
+  background:linear-gradient(180deg,#070e17 0%,rgba(7,14,23,.95) 100%);
+  border-bottom:1px solid var(--b1);
+  box-shadow:0 1px 30px rgba(0,229,255,.08);
+}
+.logo{display:flex;align-items:center;gap:12px;text-decoration:none}
+.logo-ring{
+  width:40px;height:40px;border-radius:50%;position:relative;
+  border:1.5px solid var(--cyan);
+  box-shadow:var(--glow-c);
+  display:flex;align-items:center;justify-content:center;
+}
+.logo-ring::before{
+  content:'';position:absolute;width:28px;height:28px;border-radius:50%;
+  border:1px solid rgba(0,229,255,.4);animation:ringPulse 2s ease-in-out infinite;
+}
+.logo-ring::after{
+  content:'';position:absolute;width:12px;height:12px;border-radius:50%;
+  background:var(--cyan);box-shadow:var(--glow-c);animation:corePulse 1.5s ease-in-out infinite;
+}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.3);opacity:.8}}
+@keyframes corePulse{0%,100%{transform:scale(1)}50%{transform:scale(.7)}}
+.logo-text h1{font-size:20px;font-weight:700;color:var(--cyan);letter-spacing:6px;line-height:1}
+.logo-text p{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:3px}
+
+.h-divider{width:1px;height:28px;background:var(--b2)}
+.h-stats{display:flex;gap:12px}
+.h-stat{
+  display:flex;align-items:center;gap:8px;padding:4px 12px;
+  background:var(--panel2);border:1px solid var(--b1);border-radius:20px;
+}
+.h-stat-dot{width:7px;height:7px;border-radius:50%;animation:blinkDot 1.5s infinite}
+@keyframes blinkDot{0%,100%{opacity:1}50%{opacity:.25}}
+.h-stat-text{font-family:var(--mono);font-size:10px;color:var(--text2);white-space:nowrap}
+
+.h-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+.threat-level{
+  display:flex;align-items:center;gap:8px;padding:5px 14px;
+  border:1px solid var(--b2);border-radius:4px;background:var(--panel2);
+}
+.tl-label{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:2px}
+.tl-value{font-size:14px;font-weight:700;letter-spacing:3px}
+.tl-value.low{color:var(--green)}
+.tl-value.moderate{color:var(--yellow)}
+.tl-value.high{color:var(--orange)}
+.tl-value.critical{color:var(--red);animation:critBlink .8s ease-in-out infinite}
+@keyframes critBlink{0%,100%{text-shadow:0 0 10px var(--red)}50%{text-shadow:0 0 25px var(--red),0 0 50px rgba(255,34,68,.5)}}
+#clock{font-family:var(--mono);font-size:15px;color:var(--cyan);letter-spacing:2px}
+#date{font-family:var(--mono);font-size:9px;color:var(--text3)}
+
+/* ─── LEFT PANEL ─────────────────────────────────────── */
+.left{background:var(--panel);border-right:1px solid var(--b1);overflow-y:auto;display:flex;flex-direction:column;gap:0}
+.left::-webkit-scrollbar{width:3px}
+.left::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+.section{border-bottom:1px solid var(--b1);padding:12px}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer}
+.sec-title{font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:3px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.sec-title::before{content:'//';color:var(--text4)}
+.sec-badge{font-family:var(--mono);font-size:9px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--cyan);padding:1px 6px;border-radius:10px}
+
+/* City select */
+select{
+  width:100%;background:var(--panel3);border:1px solid var(--b2);color:var(--text);
+  font-family:var(--mono);font-size:11px;padding:8px 10px;border-radius:4px;outline:none;
+  transition:border-color .2s,box-shadow .2s;cursor:pointer;
+}
+select:focus{border-color:var(--cyan);box-shadow:var(--glow-c)}
+option{background:#0a1520}
+
+/* City Info Cards */
+.city-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-top:8px}
+.city-card{
+  background:var(--panel3);border:1px solid var(--b1);border-radius:4px;
+  padding:6px 8px;display:flex;flex-direction:column;gap:2px;
+}
+.cc-label{font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.cc-val{font-family:var(--sans);font-weight:600;font-size:13px;color:var(--cyan)}
+
+/* Scenario buttons */
+.scenario-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.scen-btn{
+  padding:7px 4px;background:var(--panel3);border:1px solid var(--b1);
+  color:var(--text2);font-family:var(--mono);font-size:9px;cursor:pointer;
+  border-radius:4px;transition:all .2s;text-align:center;text-transform:uppercase;
+  letter-spacing:.5px;
+}
+.scen-btn:hover,.scen-btn.active{background:rgba(0,229,255,.08);border-color:var(--cyan);color:var(--cyan)}
+.scen-btn.danger:hover,.scen-btn.danger.active{background:rgba(255,34,68,.08);border-color:var(--red);color:var(--red)}
+.scen-btn.warn:hover,.scen-btn.warn.active{background:rgba(255,140,0,.08);border-color:var(--orange);color:var(--orange)}
+
+/* Sliders */
+.slider-wrap{margin:6px 0}
+.slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.slider-name{font-family:var(--mono);font-size:9px;color:var(--text2)}
+.slider-reading{font-family:var(--mono);font-size:9px;color:var(--cyan);font-weight:bold}
+input[type="range"]{
+  width:100%;-webkit-appearance:none;height:3px;border-radius:2px;outline:none;cursor:pointer;
+  background:linear-gradient(90deg,var(--cyan) 0%,var(--cyan) var(--pct,0%),var(--b2) var(--pct,0%));
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+  background:var(--cyan);box-shadow:0 0 8px var(--cyan);cursor:pointer;transition:transform .15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.4)}
+
+/* Buttons */
+.btn{
+  width:100%;padding:9px;background:transparent;border:1px solid var(--b2);color:var(--text);
+  font-family:var(--mono);font-size:10px;cursor:pointer;border-radius:4px;
+  transition:all .2s;text-transform:uppercase;letter-spacing:2px;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.05)}
+.btn-c{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.06)}
+.btn-c:hover{background:rgba(0,229,255,.14)}
+.btn-r{border-color:var(--red);color:var(--red);background:rgba(255,34,68,.06)}
+.btn-r:hover{background:rgba(255,34,68,.14)}
+.btn-g{border-color:var(--green);color:var(--green);background:rgba(0,255,136,.05)}
+.btn-g:hover{background:rgba(0,255,136,.12)}
+.btn-o{border-color:var(--orange);color:var(--orange);background:rgba(255,140,0,.06)}
+.btn-o:hover{background:rgba(255,140,0,.14)}
+.btn-sm{padding:5px 10px;font-size:9px;width:auto}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}
+
+/* Overall Risk Gauge */
+.gauge-wrap{text-align:center;padding:10px 0 6px}
+.gauge-num{
+  font-family:var(--sans);font-weight:700;font-size:48px;line-height:1;
+  transition:color .5s;
+}
+.gauge-num.low{color:var(--green);text-shadow:0 0 20px rgba(0,255,136,.4)}
+.gauge-num.moderate{color:var(--yellow);text-shadow:0 0 20px rgba(255,214,0,.4)}
+.gauge-num.high{color:var(--orange);text-shadow:0 0 20px rgba(255,140,0,.4)}
+.gauge-num.critical{color:var(--red);text-shadow:0 0 25px rgba(255,34,68,.6);animation:critBlink .8s ease-in-out infinite}
+.gauge-level{font-family:var(--mono);font-size:12px;letter-spacing:5px;margin-top:4px;transition:color .5s}
+.gauge-sub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:3px}
+.gauge-bar{
+  height:4px;background:var(--b1);border-radius:2px;overflow:hidden;margin-top:8px;
+}
+.gauge-bar-fill{height:100%;border-radius:2px;transition:width 1s ease,background .5s}
+
+/* 10-risk grid */
+.risk-grid-10{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-top:8px}
+.rg-card{
+  background:var(--panel3);border:1px solid var(--b1);border-radius:4px;
+  padding:6px 8px;transition:border-color .4s,box-shadow .4s;
+}
+.rg-card.critical{border-color:rgba(255,34,68,.6);box-shadow:0 0 10px rgba(255,34,68,.15)}
+.rg-card.high{border-color:rgba(255,140,0,.5)}
+.rg-card.moderate{border-color:rgba(255,214,0,.4)}
+.rg-card.low{border-color:rgba(0,255,136,.3)}
+.rg-icon{font-size:12px}
+.rg-name{font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;margin-left:3px}
+.rg-val{font-family:var(--sans);font-weight:700;font-size:20px;margin-top:2px;transition:color .4s}
+.rg-bar{height:2px;background:var(--b1);border-radius:1px;margin-top:4px;overflow:hidden}
+.rg-fill{height:100%;border-radius:1px;transition:width .8s ease}
+
+/* Alerts strip */
+.alert-strip{border-radius:3px;padding:5px 8px;margin:3px 0;font-family:var(--mono);font-size:9px;display:flex;align-items:center;gap:6px}
+.alert-strip.c{background:rgba(255,34,68,.1);border:1px solid rgba(255,34,68,.4);color:var(--red)}
+.alert-strip.h{background:rgba(255,140,0,.1);border:1px solid rgba(255,140,0,.4);color:var(--orange)}
+.alert-strip.m{background:rgba(255,214,0,.1);border:1px solid rgba(255,214,0,.4);color:var(--yellow)}
+
+/* ─── MAP CENTER ─────────────────────────────────────── */
+.map-wrap{position:relative;background:#020810}
+#map{width:100%;height:100%}
+.map-hud{
+  position:absolute;z-index:1000;pointer-events:none;
+}
+.map-hud.tl{top:10px;left:10px}
+.map-hud.tr{top:10px;right:10px}
+.map-hud.bl{bottom:10px;left:10px}
+.map-hud.br{bottom:10px;right:10px}
+.hud-box{
+  background:rgba(7,14,23,.92);border:1px solid var(--b2);
+  backdrop-filter:blur(6px);border-radius:5px;padding:8px 12px;pointer-events:auto;
+}
+.hud-title{font-family:var(--mono);font-size:8px;color:var(--cyan);letter-spacing:2px;margin-bottom:6px;text-transform:uppercase}
+.view-btns{display:flex;gap:4px;flex-wrap:wrap}
+.vbtn{
+  padding:4px 9px;background:transparent;border:1px solid var(--b2);
+  color:var(--text3);font-family:var(--mono);font-size:8px;cursor:pointer;
+  border-radius:3px;transition:all .2s;text-transform:uppercase;letter-spacing:1px;pointer-events:auto;
+}
+.vbtn:hover,.vbtn.act{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.08)}
+.vbtn.danger{border-color:var(--red);color:var(--red);background:rgba(255,34,68,.06)}
+
+/* Incident counter HUD */
+.inc-hud{text-align:center;min-width:80px}
+.inc-big{font-family:var(--sans);font-size:32px;font-weight:700;color:var(--red);line-height:1}
+.inc-label{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:2px}
+.inc-time{font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:4px}
+
+/* Legend HUD */
+.leg-item{display:flex;align-items:center;gap:6px;margin:3px 0;font-family:var(--mono);font-size:8px;color:var(--text3)}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* ─── RIGHT PANEL ────────────────────────────────────── */
+.right{background:var(--panel);border-left:1px solid var(--b1);display:flex;flex-direction:column}
+.tab-strip{display:flex;background:var(--panel2);border-bottom:1px solid var(--b1);overflow-x:auto}
+.tab-strip::-webkit-scrollbar{display:none}
+.tab-btn{
+  flex:1;min-width:50px;padding:10px 6px;border:none;background:transparent;
+  color:var(--text4);font-family:var(--mono);font-size:8px;cursor:pointer;
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid transparent;
+  transition:all .2s;white-space:nowrap;
+}
+.tab-btn:hover{color:var(--text2)}
+.tab-btn.act{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-content{flex:1;overflow-y:auto;padding:12px}
+.tab-content::-webkit-scrollbar{width:3px}
+.tab-content::-webkit-scrollbar-thumb{background:var(--b2)}
+.pane{display:none}
+.pane.act{display:block}
+
+/* Sub-title */
+.sub-title{font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--b1)}
+
+/* SOS */
+.sos-area{
+  width:100%;min-height:75px;background:var(--panel3);border:1px solid var(--b2);
+  color:var(--text);font-family:var(--mono);font-size:11px;padding:8px;
+  border-radius:4px;resize:none;outline:none;transition:border-color .2s;
+}
+.sos-area:focus{border-color:var(--red);box-shadow:var(--glow-r)}
+.preset-row{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.preset{
+  padding:3px 8px;border:1px solid var(--b1);background:transparent;color:var(--text3);
+  font-family:var(--mono);font-size:8px;cursor:pointer;border-radius:3px;transition:all .15s;
+}
+.preset:hover{border-color:var(--red);color:var(--red)}
+.sos-result{
+  margin-top:10px;background:var(--panel3);border:1px solid var(--b1);
+  border-radius:4px;padding:10px;display:none;
+}
+.sos-result.show{display:block}
+.priority-tag{
+  display:inline-block;padding:2px 8px;border-radius:3px;
+  font-family:var(--mono);font-size:9px;margin-bottom:8px;font-weight:bold;
+}
+.p1{background:rgba(255,34,68,.2);border:1px solid var(--red);color:var(--red)}
+.p2{background:rgba(255,140,0,.2);border:1px solid var(--orange);color:var(--orange)}
+.p3{background:rgba(255,214,0,.2);border:1px solid var(--yellow);color:var(--yellow)}
+
+/* KV rows */
+.kv{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b1)}
+.kv:last-child{border-bottom:none}
+.kv-k{font-family:var(--mono);font-size:9px;color:var(--text3)}
+.kv-v{font-family:var(--mono);font-size:9px;color:var(--cyan)}
+.kv-v.red{color:var(--red)}
+.kv-v.orange{color:var(--orange)}
+.kv-v.green{color:var(--green)}
+
+/* Chat */
+.chat-box{
+  height:255px;overflow-y:auto;background:#020810;
+  border:1px solid var(--b1);border-radius:4px;
+  padding:8px;display:flex;flex-direction:column;gap:7px;margin-bottom:7px;
+}
+.chat-box::-webkit-scrollbar{width:2px}
+.chat-box::-webkit-scrollbar-thumb{background:var(--b2)}
+.msg{max-width:88%;padding:7px 10px;border-radius:4px;font-size:11px;line-height:1.55}
+.msg.u{align-self:flex-end;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);color:var(--text)}
+.msg.a{align-self:flex-start;background:var(--panel2);border:1px solid var(--b2);color:var(--text)}
+.msg-meta{font-family:var(--mono);font-size:8px;color:var(--text4);margin-bottom:3px}
+.typing{align-self:flex-start;padding:8px 12px;background:var(--panel2);border-radius:4px;display:none;gap:4px}
+.typing.show{display:flex}
+.td{width:6px;height:6px;background:var(--cyan);border-radius:50%;animation:tdBounce 1.2s infinite}
+.td:nth-child(2){animation-delay:.2s}
+.td:nth-child(3){animation-delay:.4s}
+@keyframes tdBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
+.chat-row{display:flex;gap:6px;margin-bottom:6px}
+.chat-in{
+  flex:1;background:var(--panel3);border:1px solid var(--b2);color:var(--text);
+  font-family:var(--sans);font-size:12px;padding:8px 10px;border-radius:4px;outline:none;
+}
+.chat-in:focus{border-color:var(--cyan)}
+.send{
+  padding:8px 12px;background:rgba(0,229,255,.08);border:1px solid var(--cyan);
+  color:var(--cyan);cursor:pointer;border-radius:4px;font-size:14px;transition:all .2s;
+}
+.send:hover{background:rgba(0,229,255,.18)}
+.mode-row{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.mode-btn{
+  padding:3px 8px;border:1px solid var(--b1);background:transparent;color:var(--text3);
+  font-family:var(--mono);font-size:8px;cursor:pointer;border-radius:3px;transition:all .15s;
+}
+.mode-btn:hover,.mode-btn.sel{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.06)}
+.quick-row{display:flex;flex-wrap:wrap;gap:3px}
+.q-btn{
+  padding:3px 7px;border:1px solid var(--b1);background:transparent;color:var(--text3);
+  font-family:var(--mono);font-size:8px;cursor:pointer;border-radius:3px;transition:all .15s;
+}
+.q-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* Forecast */
+.fc-controls{display:flex;gap:5px;margin-bottom:8px;align-items:center}
+.fc-controls select{flex:1}
+.fc-controls .btn-sm{height:34px;white-space:nowrap}
+#fcChart{max-height:190px}
+.fc-peak{
+  margin-top:8px;padding:7px;background:var(--panel3);border:1px solid var(--b1);border-radius:4px;
+}
+.fc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
+.fc-stat{background:var(--panel3);border:1px solid var(--b1);border-radius:4px;padding:6px;text-align:center}
+.fc-stat-num{font-family:var(--sans);font-weight:700;font-size:18px;color:var(--cyan)}
+.fc-stat-label{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px}
+
+/* Resources */
+.res-list{display:flex;flex-direction:column;gap:5px}
+.res-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:7px 9px;background:var(--panel3);border:1px solid var(--b1);border-radius:4px;
+}
+.res-left .res-name{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text)}
+.res-left .res-meta{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:1px}
+.res-right{text-align:right}
+.res-count{font-family:var(--sans);font-weight:700;font-size:18px;color:var(--cyan)}
+.res-unit{font-family:var(--mono);font-size:8px;color:var(--text3)}
+.res-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:10px}
+.res-sum-card{background:var(--panel3);border:1px solid var(--b1);border-radius:4px;padding:7px;text-align:center}
+.res-sum-big{font-family:var(--sans);font-weight:700;font-size:16px}
+.res-sum-label{font-family:var(--mono);font-size:8px;color:var(--text3)}
+
+/* Impact */
+.impact-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:10px}
+.imp-card{background:var(--panel3);border:1px solid var(--b1);border-radius:4px;padding:8px;text-align:center}
+.imp-num{font-family:var(--sans);font-weight:700;font-size:17px;color:var(--red)}
+.imp-label{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:2px}
+.sector-bar{margin:4px 0}
+.sector-row{display:flex;align-items:center;gap:6px;margin:3px 0}
+.sector-name{font-family:var(--mono);font-size:8px;color:var(--text3);width:90px;flex-shrink:0}
+.sector-track{flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden}
+.sector-fill{height:100%;border-radius:3px;background:var(--orange);transition:width .8s}
+.sector-val{font-family:var(--mono);font-size:8px;color:var(--orange);width:30px;text-align:right}
+
+/* Evacuation */
+.evac-phase{padding:8px;background:var(--panel3);border:1px solid var(--b1);border-radius:4px;margin-bottom:5px}
+.phase-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.phase-num{font-family:var(--mono);font-size:9px;color:var(--cyan);font-weight:bold}
+.phase-pop{font-family:var(--mono);font-size:8px;color:var(--text3)}
+.phase-text{font-size:11px;color:var(--text2);line-height:1.5}
+.route-item{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--panel3);border:1px solid var(--b1);border-radius:3px;margin:3px 0}
+.route-name{font-family:var(--mono);font-size:9px;color:var(--text)}
+.route-status{font-family:var(--mono);font-size:8px}
+.route-status.open{color:var(--green)}
+.route-status.congested{color:var(--orange)}
+.route-status.blocked{color:var(--red)}
+.shelter-item{padding:6px 8px;background:var(--panel3);border:1px solid var(--b1);border-radius:3px;margin:3px 0;display:flex;justify-content:space-between}
+.sh-name{font-family:var(--sans);font-size:11px;color:var(--text)}
+.sh-cap{font-family:var(--mono);font-size:8px;color:var(--cyan)}
+
+/* Feed */
+.feed-item{padding:8px;border-left:3px solid var(--b2);background:var(--panel3);border-radius:0 4px 4px 0;margin-bottom:5px;animation:fadeSlide .3s ease}
+.feed-item.ALERT{border-left-color:var(--red)}
+.feed-item.UPDATE{border-left-color:var(--orange)}
+.feed-item.NDRF,.feed-item.IMD{border-left-color:var(--cyan)}
+.feed-item.CLEAR{border-left-color:var(--green)}
+.feed-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.feed-badge{font-family:var(--mono);font-size:7px;padding:1px 5px;border-radius:2px}
+.feed-badge.ALERT{background:rgba(255,34,68,.2);color:var(--red);border:1px solid rgba(255,34,68,.4)}
+.feed-badge.UPDATE{background:rgba(255,140,0,.15);color:var(--orange);border:1px solid rgba(255,140,0,.3)}
+.feed-badge.NDRF,.feed-badge.IMD{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
+.feed-badge.CLEAR{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.feed-src{font-family:var(--mono);font-size:8px;color:var(--text3)}
+.feed-text{font-size:11px;color:var(--text2);line-height:1.45}
+.feed-time{font-family:var(--mono);font-size:8px;color:var(--text4);margin-top:3px}
+@keyframes fadeSlide{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+
+/* Global Alert Banner */
+#alertBanner{
+  position:fixed;top:56px;left:0;right:0;z-index:9998;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 20px;font-family:var(--mono);font-size:11px;color:white;
+  border-bottom:1px solid rgba(255,255,255,.2);
+  animation:bannerIn .3s ease;
+}
+#alertBanner.hidden{display:none!important}
+@keyframes bannerIn{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+.banner-close{background:none;border:none;color:white;cursor:pointer;font-size:18px;line-height:1;opacity:.7}
+.banner-close:hover{opacity:1}
+
+/* WebSocket live badge */
+.ws-badge{
+  position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  background:var(--panel2);border:1px solid var(--b2);border-radius:20px;
+  padding:4px 14px;font-family:var(--mono);font-size:9px;color:var(--text3);
+  display:flex;align-items:center;gap:6px;z-index:500;opacity:.8;
+}
+.ws-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blinkDot 1.5s infinite}
+
+/* Misc */
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fadeIn .3s ease}
+.spin{animation:spinAnim 1s linear infinite;display:inline-block}
+@keyframes spinAnim{to{transform:rotate(360deg)}}
+.small-tag{font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:3px}
+.tag-g{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--green)}
+.tag-r{background:rgba(255,34,68,.1);border:1px solid rgba(255,34,68,.3);color:var(--red)}
+.tag-c{background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--cyan)}
+.tag-o{background:rgba(255,140,0,.1);border:1px solid rgba(255,140,0,.3);color:var(--orange)}
+.helpline-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-top:6px}
+.hl{background:var(--panel3);border:1px solid var(--b1);border-radius:3px;padding:5px 7px}
+.hl-num{font-family:var(--mono);font-size:12px;color:var(--cyan);font-weight:bold}
+.hl-name{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:1px}
+</style>
+</head>
+<body>
+
+<!-- Alert Banner -->
+<div id="alertBanner" class="hidden">
+  <span id="alertText">⚠ ALERT</span>
+  <button class="banner-close" onclick="closeBanner()">×</button>
+</div>
+
+<!-- WS Live Badge -->
+<div class="ws-badge" id="wsBadge">
+  <div class="ws-dot"></div>
+  <span id="wsStatus">LIVE MONITORING ACTIVE</span>
+</div>
+
+<div class="app">
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">
+    <div class="logo-ring"></div>
+    <div class="logo-text">
+      <h1>IRIS</h1>
+      <p>Intelligent Risk &amp; Response Intelligence System v4.0</p>
+    </div>
+  </div>
+  <div class="h-divider"></div>
+  <div class="h-stats">
+    <div class="h-stat"><div class="h-stat-dot" style="background:var(--green)"></div><span class="h-stat-text">SYSTEM ONLINE</span></div>
+    <div class="h-stat" id="apiPill"><div class="h-stat-dot" style="background:var(--orange)"></div><span class="h-stat-text">API CHECKING</span></div>
+    <div class="h-stat"><div class="h-stat-dot" style="background:var(--blue)"></div><span class="h-stat-text">25 CITIES</span></div>
+    <div class="h-stat"><div class="h-stat-dot" style="background:var(--pink)"></div><span class="h-stat-text">15 ENDPOINTS</span></div>
+  </div>
+  <div class="h-right">
+    <div class="threat-level">
+      <div class="tl-label">NATIONAL THREAT</div>
+      <div class="tl-value low" id="nationalThreat">LOW</div>
+    </div>
+    <div>
+      <div id="clock">--:--:--</div>
+      <div id="date">-- --- ---- IST</div>
+    </div>
+  </div>
+</header>
+
+<!-- ── LEFT PANEL ── -->
+<div class="left">
+
+  <!-- City -->
+  <div class="section">
+    <div class="sec-hdr"><div class="sec-title">Target Location</div><span class="sec-badge" id="cityCount">25</span></div>
+    <select id="citySelect" onchange="onCityChange()">
+      <option value="">— Select City —</option>
+      <optgroup label="Metro Cities">
+        <option value="Mumbai">Mumbai, Maharashtra</option>
+        <option value="Delhi">Delhi</option>
+        <option value="Chennai">Chennai, Tamil Nadu</option>
+        <option value="Kolkata">Kolkata, West Bengal</option>
+        <option value="Bangalore">Bangalore, Karnataka</option>
+        <option value="Hyderabad">Hyderabad, Telangana</option>
+      </optgroup>
+      <optgroup label="High Risk Zones">
+        <option value="Wayanad">Wayanad, Kerala</option>
+        <option value="Uttarakhand">Uttarakhand</option>
+        <option value="Guwahati">Guwahati, Assam</option>
+        <option value="Bhubaneswar">Bhubaneswar, Odisha</option>
+        <option value="Patna">Patna, Bihar</option>
+        <option value="Srinagar">Srinagar, J&K</option>
+        <option value="Imphal">Imphal, Manipur</option>
+      </optgroup>
+      <optgroup label="Coastal Cities">
+        <option value="Kochi">Kochi, Kerala</option>
+        <option value="Visakhapatnam">Visakhapatnam, AP</option>
+        <option value="Surat">Surat, Gujarat</option>
+        <option value="Thiruvananthapuram">Thiruvananthapuram, Kerala</option>
+      </optgroup>
+      <optgroup label="Other Cities">
+        <option value="Pune">Pune, Maharashtra</option>
+        <option value="Ahmedabad">Ahmedabad, Gujarat</option>
+        <option value="Jaipur">Jaipur, Rajasthan</option>
+        <option value="Nagpur">Nagpur, Maharashtra</option>
+        <option value="Indore">Indore, MP</option>
+        <option value="Shimla">Shimla, Himachal</option>
+        <option value="Dehradun">Dehradun, Uttarakhand</option>
+        <option value="Raipur">Raipur, Chhattisgarh</option>
+      </optgroup>
+    </select>
+    <div class="city-cards" id="cityCards"></div>
+  </div>
+
+  <!-- Scenarios -->
+  <div class="section">
+    <div class="sec-hdr"><div class="sec-title">Weather Scenario</div></div>
+    <div class="scenario-grid">
+      <button class="scen-btn" onclick="loadScenario('normal')">✓ Normal</button>
+      <button class="scen-btn" onclick="loadScenario('monsoon')">🌧 Monsoon</button>
+      <button class="scen-btn danger" onclick="loadScenario('cyclone')">🌀 Cyclone</button>
+      <button class="scen-btn warn" onclick="loadScenario('heatwave')">🌡 Heatwave</button>
+      <button class="scen-btn" onclick="loadScenario('drought')">☀ Drought</button>
+      <button class="scen-btn danger" onclick="loadScenario('earthquake')">⚡ Earthquake</button>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div class="section">
+    <div class="sec-hdr"><div class="sec-title">Live Parameters</div><span class="sec-badge">10</span></div>
+    <div id="sliders"></div>
+    <div class="btn-grid">
+      <button class="btn btn-c" onclick="analyzeRisk()" id="analyzeBtn">▶ ANALYZE</button>
+      <button class="btn" onclick="loadAllCities()">🗺 ALL CITIES</button>
+    </div>
+    <button class="btn btn-r" style="margin-top:5px" onclick="generateAlert()" id="alertBtn" disabled>⚠ GENERATE ALERT</button>
+    <button class="btn btn-o" style="margin-top:5px" onclick="generateSITREP()">📋 GENERATE SITREP</button>
+  </div>
+
+  <!-- Risk Results -->
+  <div class="section" id="riskSec" style="display:none">
+    <div class="sec-hdr"><div class="sec-title">Risk Matrix</div><span class="sec-badge" id="riskBadge">--</span></div>
+    <div class="gauge-wrap">
+      <div class="gauge-num low" id="gaugeNum">--</div>
+      <div class="gauge-level" id="gaugeLevel">AWAITING ANALYSIS</div>
+      <div class="gauge-sub" id="gaugeSub">Select city and click ANALYZE</div>
+      <div class="gauge-bar"><div class="gauge-bar-fill" id="gaugeBar" style="width:0%"></div></div>
+    </div>
+    <div class="risk-grid-10" id="riskGrid10"></div>
+    <div id="alertStrips" style="margin-top:8px"></div>
+    <div id="riskFactorsList" style="margin-top:8px"></div>
+  </div>
+
+  <!-- Historical -->
+  <div class="section" id="histSec" style="display:none">
+    <div class="sec-hdr"><div class="sec-title">Historical Events</div></div>
+    <div id="histContent"></div>
+  </div>
+
+  <!-- Helplines -->
+  <div class="section">
+    <div class="sec-hdr"><div class="sec-title">Emergency Helplines</div></div>
+    <div class="helpline-grid">
+      <div class="hl"><div class="hl-num">100</div><div class="hl-name">Police</div></div>
+      <div class="hl"><div class="hl-num">101</div><div class="hl-name">Fire Brigade</div></div>
+      <div class="hl"><div class="hl-num">108</div><div class="hl-name">Ambulance</div></div>
+      <div class="hl"><div class="hl-num">1554</div><div class="hl-name">Coast Guard</div></div>
+      <div class="hl"><div class="hl-num">1077</div><div class="hl-name">State EOC</div></div>
+      <div class="hl"><div class="hl-num">1091</div><div class="hl-name">Women Helpline</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── MAP CENTER ── -->
+<div class="map-wrap">
+  <div id="map"></div>
+
+  <!-- Top-left controls -->
+  <div class="map-hud tl">
+    <div class="hud-box">
+      <div class="hud-title">Map Layer</div>
+      <div class="view-btns">
+        <button class="vbtn act" id="vbtn-risk" onclick="setView('risk')">Risk Zones</button>
+        <button class="vbtn" id="vbtn-sos" onclick="setView('sos')">SOS Pins</button>
+        <button class="vbtn" id="vbtn-evac" onclick="setView('evac')">Evac Routes</button>
+        <button class="vbtn danger" onclick="clearPins()">Clear All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top-right incident counter -->
+  <div class="map-hud tr">
+    <div class="hud-box inc-hud">
+      <div class="inc-big" id="incNum">0</div>
+      <div class="inc-label">INCIDENTS</div>
+      <div class="inc-time" id="incTime">--</div>
+    </div>
+  </div>
+
+  <!-- Bottom-left legend -->
+  <div class="map-hud bl">
+    <div class="hud-box">
+      <div class="hud-title">Risk Levels</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ff2244"></div>CRITICAL &gt;70%</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ff8c00"></div>HIGH 50–70%</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ffd600"></div>MODERATE 30–50%</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#00ff88"></div>LOW &lt;30%</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ff2244;box-shadow:0 0 8px red"></div>SOS Active</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── RIGHT PANEL ── -->
+<div class="right">
+  <div class="tab-strip">
+    <button class="tab-btn act" onclick="switchTab('sos')">🆘 SOS</button>
+    <button class="tab-btn" onclick="switchTab('chat')">🤖 AI</button>
+    <button class="tab-btn" onclick="switchTab('forecast')">📈 Forecast</button>
+    <button class="tab-btn" onclick="switchTab('resources')">🚁 Resources</button>
+    <button class="tab-btn" onclick="switchTab('impact')">💥 Impact</button>
+    <button class="tab-btn" onclick="switchTab('evac')">🚌 Evacuation</button>
+    <button class="tab-btn" onclick="switchTab('feed')">📡 Feed</button>
+  </div>
+
+  <div class="tab-content">
+
+    <!-- SOS -->
+    <div class="pane act" id="pane-sos">
+      <div class="sub-title">Distress Signal Analyzer</div>
+      <textarea class="sos-area" id="sosInput" placeholder="Paste tweet / SMS / voice transcript here…&#10;e.g. Water level rising fast, stuck in Wayanad Kerala, please help!!"></textarea>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text4);margin:5px 0">SAMPLE SIGNALS:</div>
+      <div class="preset-row">
+        <button class="preset" onclick="setPreset(0)">🌊 Flood-Wayanad</button>
+        <button class="preset" onclick="setPreset(1)">🔥 Fire-Shimla</button>
+        <button class="preset" onclick="setPreset(2)">🌀 Cyclone-Chennai</button>
+        <button class="preset" onclick="setPreset(3)">⛰ Landslide-Uttarakhand</button>
+        <button class="preset" onclick="setPreset(4)">🏥 Medical-Mumbai</button>
+        <button class="preset" onclick="setPreset(5)">⚡ Earthquake-Imphal</button>
+      </div>
+      <div style="display:flex;gap:5px;margin-top:7px">
+        <button class="btn btn-r" onclick="analyzeSOS()" style="flex:1">🔍 ANALYZE SIGNAL</button>
+        <button class="btn btn-sm" onclick="document.getElementById('sosInput').value=''">✕</button>
+      </div>
+      <div class="sos-result" id="sosResult"></div>
+      <div style="margin-top:12px">
+        <div class="sub-title">Active Incidents Log</div>
+        <div id="incidentLog" style="font-family:var(--mono);font-size:9px;color:var(--text4)">No active incidents</div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="pane" id="pane-chat">
+      <div class="sub-title">IRIS AI — Powered by Groq LLaMA-3</div>
+      <div class="mode-row">
+        <span style="font-family:var(--mono);font-size:8px;color:var(--text4);align-self:center">MODE:</span>
+        <button class="mode-btn sel" id="mode-general" onclick="setMode('general')">General</button>
+        <button class="mode-btn" id="mode-emergency" onclick="setMode('emergency')">Emergency</button>
+        <button class="mode-btn" id="mode-briefing" onclick="setMode('briefing')">SITREP</button>
+        <button class="mode-btn" id="mode-technical" onclick="setMode('technical')">Technical</button>
+      </div>
+      <div class="chat-box" id="chatBox">
+        <div class="msg a">
+          <div class="msg-meta">IRIS v4.0 · System Boot</div>
+          <div>🛡️ <strong>IRIS Disaster Intelligence System</strong> is online.<br><br>I provide expert analysis for India's disaster management needs. Select a chat mode above for specialized responses:<br><br>• <strong>General</strong> — Comprehensive answers<br>• <strong>Emergency</strong> — Immediate action protocols<br>• <strong>SITREP</strong> — Structured situation reports<br>• <strong>Technical</strong> — Deep methodology analysis</div>
+        </div>
+        <div class="typing" id="typing">
+          <div class="td"></div><div class="td"></div><div class="td"></div>
+        </div>
+      </div>
+      <div class="chat-row">
+        <input class="chat-in" id="chatIn" placeholder="Ask IRIS anything…" onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="send" onclick="sendChat()">➤</button>
+      </div>
+      <div class="quick-row" style="margin-top:6px">
+        <button class="q-btn" onclick="qChat('Is Mumbai safe from flooding today?')">Mumbai flood</button>
+        <button class="q-btn" onclick="qChat('NDRF deployment protocol for cyclone')">NDRF protocol</button>
+        <button class="q-btn" onclick="qChat('Give SITREP for current selected city')">SITREP</button>
+        <button class="q-btn" onclick="qChat('Historical disasters in Wayanad Kerala')">Wayanad history</button>
+        <button class="q-btn" onclick="qChat('What resources are needed for earthquake response in Delhi?')">Earthquake Delhi</button>
+        <button class="q-btn" onclick="qChat('Explain seismic zones in India')">Seismic zones</button>
+      </div>
+    </div>
+
+    <!-- FORECAST -->
+    <div class="pane" id="pane-forecast">
+      <div class="sub-title">72-Hour Risk Forecast</div>
+      <div class="fc-controls">
+        <select id="fcCity">
+          <option>Mumbai</option><option>Chennai</option><option>Wayanad</option>
+          <option>Delhi</option><option>Kochi</option><option>Bhubaneswar</option>
+          <option>Guwahati</option><option>Uttarakhand</option>
+        </select>
+        <select id="fcHours" style="width:70px">
+          <option value="24">24h</option>
+          <option value="48">48h</option>
+          <option value="72" selected>72h</option>
+        </select>
+        <button class="btn btn-c btn-sm" onclick="loadForecast()">▶</button>
+      </div>
+      <canvas id="fcChart"></canvas>
+      <div class="fc-stats" id="fcStats"></div>
+      <div class="fc-peak" id="fcPeak"></div>
+    </div>
+
+    <!-- RESOURCES -->
+    <div class="pane" id="pane-resources">
+      <div class="sub-title">Resource Deployment Planner</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+        <select id="resCity"><option>Mumbai</option><option>Chennai</option><option>Delhi</option><option>Wayanad</option><option>Kochi</option><option>Guwahati</option></select>
+        <select id="resType">
+          <option value="flood">Flood</option><option value="fire">Fire</option>
+          <option value="cyclone">Cyclone</option><option value="earthquake">Earthquake</option>
+          <option value="landslide">Landslide</option><option value="heatwave">Heatwave</option>
+        </select>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text3)">Severity Level</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--cyan)" id="resSevVal">65%</span>
+        </div>
+        <input type="range" id="resSev" min="10" max="100" value="65" oninput="document.getElementById('resSevVal').textContent=this.value+'%'">
+      </div>
+      <button class="btn btn-c" onclick="loadResources()" style="margin-bottom:10px">COMPUTE ALLOCATION</button>
+      <div id="resResult"></div>
+    </div>
+
+    <!-- IMPACT -->
+    <div class="pane" id="pane-impact">
+      <div class="sub-title">Disaster Impact Analysis</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+        <select id="impCity"><option>Mumbai</option><option>Chennai</option><option>Delhi</option><option>Wayanad</option></select>
+        <select id="impType"><option value="flood">Flood</option><option value="cyclone">Cyclone</option><option value="earthquake">Earthquake</option><option value="fire">Fire</option><option value="landslide">Landslide</option></select>
+      </div>
+      <div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text3)">Magnitude / Severity</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--red)" id="impMagVal">65%</span>
+        </div>
+        <input type="range" id="impMag" min="10" max="100" value="65" oninput="document.getElementById('impMagVal').textContent=this.value+'%'">
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text3)">Duration (hours)</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--orange)" id="impDurVal">24h</span>
+        </div>
+        <input type="range" id="impDur" min="3" max="168" value="24" step="3" oninput="document.getElementById('impDurVal').textContent=this.value+'h'">
+      </div>
+      <button class="btn btn-r" onclick="loadImpact()" style="margin-bottom:10px">COMPUTE IMPACT</button>
+      <div id="impResult"></div>
+    </div>
+
+    <!-- EVACUATION -->
+    <div class="pane" id="pane-evac">
+      <div class="sub-title">Evacuation Planner</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+        <select id="evCity"><option>Mumbai</option><option>Chennai</option><option>Delhi</option><option>Wayanad</option><option>Kochi</option><option>Bhubaneswar</option></select>
+        <select id="evType"><option value="flood">Flood</option><option value="cyclone">Cyclone</option><option value="earthquake">Earthquake</option><option value="fire">Fire</option></select>
+      </div>
+      <div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text3)">Severity</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--orange)" id="evSevVal">60%</span>
+        </div>
+        <input type="range" id="evSev" min="10" max="100" value="60" oninput="document.getElementById('evSevVal').textContent=this.value+'%'">
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text3)">Population Affected</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--cyan)" id="evPopVal">50,000</span>
+        </div>
+        <input type="range" id="evPop" min="1000" max="500000" value="50000" step="1000"
+          oninput="document.getElementById('evPopVal').textContent=parseInt(this.value).toLocaleString('en-IN')">
+      </div>
+      <button class="btn btn-o" onclick="loadEvac()" style="margin-bottom:10px">GENERATE EVAC PLAN</button>
+      <div id="evResult"></div>
+    </div>
+
+    <!-- FEED -->
+    <div class="pane" id="pane-feed">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="sub-title" style="margin:0">Intelligence Feed</div>
+        <button class="btn btn-c btn-sm" onclick="refreshFeed()">↻ Refresh</button>
+      </div>
+      <div id="feedList"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let map, cityMarkers={}, sosPins=[], fcChart=null;
+let currentCity=null, currentRisks=null, chatHistory=[], chatMode='general';
+let incidentLog=[], incidentCount=0, feedItems=[];
+let ws=null;
+
+const SLIDERS_CFG=[
+  {id:'rainfall',   label:'Rainfall mm/hr',  min:0,  max:300,val:25,  unit:'mm'},
+  {id:'temperature',label:'Temperature °C',  min:15, max:55, val:30,  unit:'°C'},
+  {id:'humidity',   label:'Humidity %',      min:10, max:100,val:60,  unit:'%'},
+  {id:'wind_speed', label:'Wind Speed km/h', min:0,  max:200,val:20,  unit:'km/h'},
+  {id:'river_level',label:'River Level %',   min:0,  max:100,val:40,  unit:'%'},
+  {id:'soil_moisture',label:'Soil Moisture %',min:0, max:100,val:50,  unit:'%'},
+  {id:'seismic',    label:'Seismic Activity',min:0,  max:9,  val:0,   unit:'R'},
+  {id:'aqi',        label:'Air Quality AQI', min:0,  max:500,val:80,  unit:''},
+  {id:'visibility', label:'Visibility km',   min:0,  max:30, val:10,  unit:'km'},
+  {id:'storm_surge',label:'Storm Surge m',   min:0,  max:10, val:0,   unit:'m'},
+];
+const SCENARIOS={
+  normal:    {rainfall:25, temperature:30,humidity:60,wind_speed:15,river_level:35,soil_moisture:45,seismic:0,aqi:80, visibility:10,storm_surge:0},
+  monsoon:   {rainfall:180,temperature:27,humidity:90,wind_speed:40,river_level:75,soil_moisture:85,seismic:0,aqi:80, visibility:5, storm_surge:1},
+  cyclone:   {rainfall:200,temperature:28,humidity:95,wind_speed:120,river_level:80,soil_moisture:90,seismic:0,aqi:60, visibility:2, storm_surge:5},
+  heatwave:  {rainfall:2,  temperature:47,humidity:25,wind_speed:15,river_level:20,soil_moisture:15,seismic:0,aqi:220,visibility:6, storm_surge:0},
+  drought:   {rainfall:0,  temperature:42,humidity:20,wind_speed:20,river_level:10,soil_moisture:5, seismic:0,aqi:160,visibility:4, storm_surge:0},
+  earthquake:{rainfall:20, temperature:32,humidity:50,wind_speed:10,river_level:30,soil_moisture:40,seismic:7,aqi:100,visibility:8, storm_surge:0},
+};
+const SOS_PRESETS=[
+  'Water level rising fast, stuck in house, please help Wayanad Kerala! SOS we need rescue urgently!',
+  'Forest fire spreading near Shimla hills, people trapped, multiple casualties, fire brigade needed immediately',
+  'Cyclone landfall Chennai coast, strong winds 120km/h, flooding in Besant Nagar, families need evacuation',
+  'Massive landslide on NH-58 Uttarakhand, 6 vehicles buried under debris, SOS people trapped alive',
+  'Building collapse Mumbai Dharavi, multiple injured, dead, ambulance needed immediately please help',
+  'Earthquake 6.5 magnitude Imphal Manipur, several buildings collapsed, people under rubble, NDRF needed',
+];
+const RISK_ICONS={flood:'🌊',fire:'🔥',cyclone:'🌀',landslide:'⛰',heatwave:'🌡',drought:'☀',earthquake:'⚡',air_quality:'💨',fog:'🌫',tsunami:'🌊'};
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  initMap(); initSliders(); initClock(); checkAPI();
+  loadAllCities(); buildFeed(); loadForecast();
+  initWebSocket();
+  setInterval(buildFeed, 30000);
+  setInterval(checkAPI, 12000);
+  setInterval(tickNationalThreat, 45000);
+});
+
+// ── CLOCK ──────────────────────────────────────────────────────────────────────
+function initClock(){
+  const tick=()=>{
+    const n=new Date();
+    document.getElementById('clock').textContent=n.toLocaleTimeString('en-IN',{hour12:false});
+    document.getElementById('date').textContent=n.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' IST';
+  };
+  tick(); setInterval(tick,1000);
+}
+
+// ── API Check ─────────────────────────────────────────────────────────────────
+async function checkAPI(){
+  const p=document.getElementById('apiPill');
+  try{
+    const r=await fetch(API+'/');
+    if(r.ok){p.innerHTML='<div class="h-stat-dot" style="background:var(--green)"></div><span class="h-stat-text">API CONNECTED</span>';}
+  }catch{p.innerHTML='<div class="h-stat-dot" style="background:var(--red)"></div><span class="h-stat-text">API OFFLINE</span>';}
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function initWebSocket(){
+  try{
+    ws=new WebSocket('ws://localhost:8000/ws/live-alerts');
+    ws.onmessage=e=>{
+      const d=JSON.parse(e.data);
+      if(d.level==='CRITICAL'){
+        addFeedEntry({level:'ALERT',text:`🔴 LIVE ALERT: ${d.disaster.toUpperCase()} in ${d.city} (${d.state}) — ${d.severity}% risk`,source:'IRIS LIVE',time:new Date().toLocaleTimeString('en-IN',{hour12:false})});
+        if(d.severity>80) showBanner(`⚡ LIVE: ${d.disaster.toUpperCase()} CRITICAL in ${d.city} — ${d.severity}%`,'critical');
+      }
+      document.getElementById('wsStatus').textContent=`LIVE · Last: ${new Date().toLocaleTimeString('en-IN',{hour12:false})}`;
+    };
+    ws.onerror=()=>{document.getElementById('wsStatus').textContent='WS OFFLINE — Demo Mode'};
+  }catch{}
+}
+
+function tickNationalThreat(){
+  const levels=['LOW','LOW','MODERATE','MODERATE','HIGH'];
+  const l=levels[Math.floor(Math.random()*levels.length)];
+  const el=document.getElementById('nationalThreat');
+  el.textContent=l; el.className='tl-value '+l.toLowerCase();
+}
+
+// ── MAP ───────────────────────────────────────────────────────────────────────
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false}).setView([22,82],5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18,subdomains:'abcd'}).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  // Leaflet popup dark style
+  const s=document.createElement('style');
+  s.textContent=`.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:transparent!important;box-shadow:none!important;padding:0!important}.leaflet-popup-content{margin:0!important}`;
+  document.head.appendChild(s);
+}
+
+function riskColor(level){return{CRITICAL:'#ff2244',HIGH:'#ff8c00',MODERATE:'#ffd600',LOW:'#00ff88'}[level]||'#888'}
+function riskSize(level){return{CRITICAL:18,HIGH:14,MODERATE:11,LOW:9}[level]||10}
+
+async function loadAllCities(){
+  try{
+    const r=await fetch(API+'/all-cities-risk');
+    const d=await r.json();
+    Object.values(cityMarkers).forEach(m=>map.removeLayer(m)); cityMarkers={};
+    d.cities.forEach(addCityMarker);
+  }catch{
+    const demo=[
+      {city:'Mumbai',lat:19.076,lng:72.878,overall_risk:62,level:'HIGH',state:'Maharashtra',dominant:'flood'},
+      {city:'Delhi',lat:28.614,lng:77.209,overall_risk:55,level:'HIGH',state:'Delhi',dominant:'heatwave'},
+      {city:'Chennai',lat:13.083,lng:80.271,overall_risk:48,level:'MODERATE',state:'Tamil Nadu',dominant:'cyclone'},
+      {city:'Wayanad',lat:11.685,lng:76.132,overall_risk:81,level:'CRITICAL',state:'Kerala',dominant:'landslide'},
+      {city:'Bangalore',lat:12.972,lng:77.595,overall_risk:28,level:'LOW',state:'Karnataka',dominant:'flood'},
+      {city:'Kolkata',lat:22.573,lng:88.364,overall_risk:58,level:'HIGH',state:'West Bengal',dominant:'flood'},
+      {city:'Bhubaneswar',lat:20.296,lng:85.825,overall_risk:74,level:'CRITICAL',state:'Odisha',dominant:'cyclone'},
+      {city:'Guwahati',lat:26.145,lng:91.736,overall_risk:53,level:'HIGH',state:'Assam',dominant:'flood'},
+      {city:'Patna',lat:25.594,lng:85.138,overall_risk:61,level:'HIGH',state:'Bihar',dominant:'flood'},
+      {city:'Kochi',lat:9.931,lng:76.267,overall_risk:67,level:'HIGH',state:'Kerala',dominant:'flood'},
+      {city:'Srinagar',lat:34.084,lng:74.797,overall_risk:44,level:'MODERATE',state:'J&K',dominant:'earthquake'},
+      {city:'Shimla',lat:31.105,lng:77.173,overall_risk:38,level:'MODERATE',state:'Himachal',dominant:'landslide'},
+      {city:'Hyderabad',lat:17.385,lng:78.487,overall_risk:32,level:'MODERATE',state:'Telangana',dominant:'flood'},
+    ];
+    Object.values(cityMarkers).forEach(m=>map.removeLayer(m)); cityMarkers={};
+    demo.forEach(addCityMarker);
+  }
+}
+
+function addCityMarker(c){
+  const col=riskColor(c.level), sz=riskSize(c.level);
+  const icon=L.divIcon({
+    html:`<div style="width:${sz}px;height:${sz}px;background:${col};border-radius:50%;border:2px solid ${col};box-shadow:0 0 ${sz+4}px ${col};opacity:.9"></div>`,
+    className:'',iconAnchor:[sz/2,sz/2]
+  });
+  const m=L.marker([c.lat,c.lng],{icon}).addTo(map);
+  m.bindPopup(`<div style="background:#070e17;border:1px solid ${col};padding:10px;min-width:170px;font-family:'Share Tech Mono',monospace;color:#cce8f8;border-radius:4px">
+    <div style="color:${col};font-size:14px;font-weight:bold">${c.city}</div>
+    <div style="font-size:9px;color:#7aaec8;margin-bottom:6px">${c.state}</div>
+    <div style="font-size:11px">Risk: <span style="color:${col}">${c.overall_risk}% — ${c.level}</span></div>
+    <div style="font-size:9px;color:#7aaec8;margin-top:2px">Primary: ${c.dominant||''}  </div>
+    <button onclick="selectFromMap('${c.city}')" style="margin-top:8px;padding:4px 8px;background:rgba(0,229,255,.08);border:1px solid #1a3a55;color:#00e5ff;cursor:pointer;font-family:inherit;font-size:9px;width:100%;border-radius:3px">ANALYZE →</button>
+  </div>`,{className:''});
+  cityMarkers[c.city]=m;
+}
+
+function selectFromMap(city){
+  document.getElementById('citySelect').value=city;
+  onCityChange(); map.closePopup();
+}
+
+function addSOSPin(lat,lng,loc,types,pri){
+  const icon=L.divIcon({
+    html:`<div style="width:18px;height:18px;background:#ff2244;border-radius:50%;border:3px solid white;box-shadow:0 0 22px #ff2244"></div><div style="background:rgba(255,34,68,.9);color:white;padding:2px 5px;font-size:8px;font-family:monospace;margin-top:2px;border-radius:2px;white-space:nowrap">${loc}</div>`,
+    className:'',iconAnchor:[9,9]
+  });
+  const m=L.marker([lat,lng],{icon}).addTo(map);
+  m.bindPopup(`<div style="background:#070e17;padding:10px;font-family:monospace;color:#cce8f8;border:1px solid #ff2244;min-width:150px;border-radius:4px"><div style="color:#ff2244;margin-bottom:4px">🆘 SOS ACTIVE</div><div style="font-size:10px">${loc}</div><div style="font-size:9px;color:#ff8c00;margin-top:2px">${pri}</div><div style="font-size:9px;color:#888">${types.join(', ')}</div></div>`);
+  sosPins.push(m);
+  map.flyTo([lat,lng],9,{duration:1.5});
+}
+
+function clearPins(){
+  sosPins.forEach(m=>map.removeLayer(m)); sosPins=[];
+  incidentCount=0; document.getElementById('incNum').textContent='0';
+  document.getElementById('incidentLog').textContent='No active incidents';
+  document.getElementById('incidentLog').innerHTML='<span style="font-family:var(--mono);font-size:9px;color:var(--text4)">No active incidents</span>';
+}
+
+function setView(v){
+  ['risk','sos','evac'].forEach(x=>{document.getElementById('vbtn-'+x)?.classList.remove('act')});
+  document.getElementById('vbtn-'+v)?.classList.add('act');
+}
+
+// ── SLIDERS ────────────────────────────────────────────────────────────────────
+function initSliders(){
+  const c=document.getElementById('sliders');
+  SLIDERS_CFG.forEach(s=>{
+    const pct=((s.val-s.min)/(s.max-s.min))*100;
+    c.innerHTML+=`<div class="slider-wrap">
+      <div class="slider-header">
+        <span class="slider-name">${s.label}</span>
+        <span class="slider-reading" id="sv-${s.id}">${s.val}${s.unit}</span>
+      </div>
+      <input type="range" id="sl-${s.id}" min="${s.min}" max="${s.max}" value="${s.val}" style="--pct:${pct}%"
+        oninput="updateSlider('${s.id}',this.value,'${s.unit}',${s.min},${s.max})">
+    </div>`;
+  });
+}
+function updateSlider(id,val,unit,min,max){
+  document.getElementById('sv-'+id).textContent=val+unit;
+  const pct=((val-min)/(max-min))*100;
+  document.getElementById('sl-'+id).style.setProperty('--pct',pct+'%');
+}
+function getSliderVals(){
+  return{
+    city:document.getElementById('citySelect').value,
+    rainfall:    +document.getElementById('sl-rainfall').value,
+    temperature: +document.getElementById('sl-temperature').value,
+    humidity:    +document.getElementById('sl-humidity').value,
+    wind_speed:  +document.getElementById('sl-wind_speed').value,
+    river_level: +document.getElementById('sl-river_level').value,
+    soil_moisture:+document.getElementById('sl-soil_moisture').value,
+    seismic_activity:+document.getElementById('sl-seismic').value,
+    air_quality_index:+document.getElementById('sl-aqi').value,
+    visibility_km:+document.getElementById('sl-visibility').value,
+    storm_surge: +document.getElementById('sl-storm_surge').value,
+  };
+}
+function loadScenario(sc){
+  const vals=SCENARIOS[sc]||SCENARIOS.normal;
+  SLIDERS_CFG.forEach(s=>{
+    const key=s.id==='seismic'?'seismic':s.id==='aqi'?'aqi':s.id==='visibility'?'visibility':s.id==='storm_surge'?'storm_surge':s.id;
+    const v=vals[key]??s.val;
+    document.getElementById('sl-'+s.id).value=v;
+    const pct=((v-s.min)/(s.max-s.min))*100;
+    document.getElementById('sl-'+s.id).style.setProperty('--pct',pct+'%');
+    document.getElementById('sv-'+s.id).textContent=v+s.unit;
+  });
+  document.querySelectorAll('.scen-btn').forEach(b=>b.classList.remove('active'));
+  event?.target?.classList.add('active');
+  if(currentCity) analyzeRisk();
+}
+
+// ── CITY CHANGE ───────────────────────────────────────────────────────────────
+const CITY_INFO={
+  Mumbai:{pop:'20.7M',coast:'Yes',zone:'III',rain:'2200mm'},
+  Delhi:{pop:'32.9M',coast:'No',zone:'IV',rain:'650mm'},
+  Chennai:{pop:'11M',coast:'Yes',zone:'III',rain:'1400mm'},
+  Kolkata:{pop:'14.9M',coast:'No',zone:'III',rain:'1600mm'},
+  Wayanad:{pop:'825K',coast:'No',zone:'III',rain:'2500mm'},
+  Bangalore:{pop:'13.6M',coast:'No',zone:'II',rain:'970mm'},
+  Kochi:{pop:'677K',coast:'Yes',zone:'III',rain:'3000mm'},
+  Guwahati:{pop:'1.2M',coast:'No',zone:'V',rain:'1600mm'},
+  Bhubaneswar:{pop:'997K',coast:'Yes',zone:'III',rain:'1500mm'},
+  Srinagar:{pop:'1.25M',coast:'No',zone:'V',rain:'650mm'},
+};
+function onCityChange(){
+  currentCity=document.getElementById('citySelect').value;
+  if(!currentCity)return;
+  const info=CITY_INFO[currentCity]||{pop:'—',coast:'—',zone:'—',rain:'—'};
+  document.getElementById('cityCards').innerHTML=`
+    <div class="city-card"><div class="cc-label">Population</div><div class="cc-val">${info.pop}</div></div>
+    <div class="city-card"><div class="cc-label">Coastal</div><div class="cc-val">${info.coast}</div></div>
+    <div class="city-card"><div class="cc-label">Seismic Zone</div><div class="cc-val">${info.zone}</div></div>
+    <div class="city-card"><div class="cc-label">Annual Rain</div><div class="cc-val">${info.rain}</div></div>`;
+  if(cityMarkers[currentCity]) map.flyTo(cityMarkers[currentCity].getLatLng(),9,{duration:1.5});
+  analyzeRisk();
+}
+
+// ── RISK ANALYSIS ──────────────────────────────────────────────────────────────
+async function analyzeRisk(){
+  const city=document.getElementById('citySelect').value;
+  if(!city){alert('Select a city first');return;}
+  const btn=document.getElementById('analyzeBtn');
+  btn.innerHTML='<span class="spin">⟳</span> ANALYZING…'; btn.disabled=true;
+  const params=getSliderVals();
+  try{
+    const r=await fetch(API+'/analyze-risk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});
+    const d=await r.json();
+    renderRisk(d); currentRisks=d;
+    document.getElementById('alertBtn').disabled=false;
+  }catch{
+    const d=demoRisk(params); renderRisk(d); currentRisks=d;
+    document.getElementById('alertBtn').disabled=false;
+  }
+  btn.innerHTML='▶ ANALYZE'; btn.disabled=false;
+}
+function demoRisk(p){
+  const flood=Math.min(100,p.rainfall*.35+p.humidity*.2+p.river_level*.3+(p.storm_surge*4));
+  const fire=Math.min(100,Math.max(0,p.temperature-25)*2.8+Math.max(0,70-p.humidity)*.9+p.wind_speed*.5);
+  const cyclone=Math.min(100,p.wind_speed*.7+p.rainfall*.1);
+  const landslide=Math.min(100,p.rainfall*.38+p.soil_moisture*.28+p.seismic_activity*3);
+  const heatwave=Math.min(100,Math.max(0,p.temperature-30)*4.5);
+  const drought=Math.min(100,Math.max(0,80-p.rainfall)*.55);
+  const earthquake=Math.min(100,p.seismic_activity*10);
+  const air_quality=Math.min(100,p.air_quality_index*.22);
+  const fog=Math.min(100,Math.max(0,10-p.visibility_km)*8);
+  const tsunami=Math.min(100,p.storm_surge*6);
+  const risks={flood,fire,cyclone,landslide,heatwave,drought,earthquake,air_quality,fog,tsunami};
+  const vals=Object.values(risks);
+  const overall=Math.round(Math.max(...vals)*.45+vals.reduce((a,b)=>a+b,0)/vals.length*.55);
+  const level=overall>70?'CRITICAL':overall>50?'HIGH':overall>30?'MODERATE':'LOW';
+  const dominant=Object.entries(risks).sort((a,b)=>b[1]-a[1])[0][0];
+  return{risks:Object.fromEntries(Object.entries(risks).map(([k,v])=>[k,Math.round(v*10)/10])),overall,level,dominant,city:p.city,risk_factors:['Demo mode — start backend for live analysis'],active_alerts:overall>50?[{type:dominant,score:risks[dominant],level}]:[]};
+}
+function renderRisk(d){
+  document.getElementById('riskSec').style.display='block';
+  const lvl=d.level.toLowerCase();
+  const col={critical:'var(--red)',high:'var(--orange)',moderate:'var(--yellow)',low:'var(--green)'}[lvl];
+  const el=document.getElementById('gaugeNum');
+  el.textContent=d.overall+'%'; el.className='gauge-num '+lvl;
+  document.getElementById('gaugeLevel').textContent='● '+d.level;
+  document.getElementById('gaugeLevel').style.color=col;
+  document.getElementById('gaugeSub').textContent=`Primary threat: ${d.dominant?.toUpperCase()||''}`;
+  document.getElementById('riskBadge').textContent=d.level;
+  const bar=document.getElementById('gaugeBar');
+  bar.style.width=d.overall+'%'; bar.style.background=col;
+  // 10-card grid
+  const grid=document.getElementById('riskGrid10');
+  grid.innerHTML=Object.entries(d.risks).map(([k,v])=>{
+    const cl=v>70?'critical':v>50?'high':v>30?'moderate':'low';
+    const fc={critical:'var(--red)',high:'var(--orange)',moderate:'var(--yellow)',low:'var(--green)'}[cl];
+    return`<div class="rg-card ${cl}">
+      <div style="display:flex;align-items:center"><span class="rg-icon">${RISK_ICONS[k]||'⚠'}</span><span class="rg-name">${k.replace('_',' ')}</span></div>
+      <div class="rg-val" style="color:${fc}">${Math.round(v)}</div>
+      <div class="rg-bar"><div class="rg-fill" style="width:${v}%;background:${fc}"></div></div>
+    </div>`;
+  }).join('');
+  // Alert strips
+  const strips=document.getElementById('alertStrips');
+  strips.innerHTML=(d.active_alerts||[]).map(a=>`<div class="alert-strip ${a.level?.toLowerCase()==='critical'?'c':a.level?.toLowerCase()==='high'?'h':'m'}">⚠ ${a.type?.toUpperCase()} — ${Math.round(a.score)}%</div>`).join('');
+  // Risk factors
+  const rf=document.getElementById('riskFactorsList');
+  if(d.risk_factors?.length){
+    rf.innerHTML=`<div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:6px 0 4px;letter-spacing:2px">KEY FACTORS</div>`+
+      d.risk_factors.map(f=>`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);padding:2px 0">▸ ${f}</div>`).join('');
+  }
+  // Historical
+  if(d.historical_context?.length){
+    document.getElementById('histSec').style.display='block';
+    document.getElementById('histContent').innerHTML=d.historical_context.map(h=>`
+      <div style="background:var(--panel3);border:1px solid var(--b1);border-radius:4px;padding:7px;margin:4px 0">
+        <div style="font-family:var(--sans);font-weight:600;font-size:12px;color:var(--cyan)">${h.event}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:3px">${h.impact}</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text4);margin-top:2px">${h.years_ago} years ago</div>
+      </div>`).join('');
+  }
+  // Update map marker
+  if(cityMarkers[d.city]){
+    const col2=riskColor(d.level);
+    const sz=riskSize(d.level);
+    const icon=L.divIcon({html:`<div style="width:${sz+4}px;height:${sz+4}px;background:${col2};border-radius:50%;border:3px solid white;box-shadow:0 0 ${sz+8}px ${col2}"></div>`,className:'',iconAnchor:[(sz+4)/2,(sz+4)/2]});
+    cityMarkers[d.city].setIcon(icon);
+  }
+}
+
+// ── SOS ──────────────────────────────────────────────────────────────────────
+function setPreset(i){document.getElementById('sosInput').value=SOS_PRESETS[i]}
+async function analyzeSOS(){
+  const msg=document.getElementById('sosInput').value.trim();
+  if(!msg)return;
+  try{
+    const r=await fetch(API+'/sos-detect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const d=await r.json();
+    renderSOS(d,msg);
+    if(d.is_distress&&d.lat&&d.lng){pinSOS(d,msg);}
+  }catch{
+    const d=demoSOS(msg); renderSOS(d,msg);
+    if(d.is_distress&&d.lat&&d.lng) pinSOS(d,msg);
+  }
+}
+function demoSOS(msg){
+  const ml=msg.toLowerCase();
+  const types=[];
+  if(/flood|water/.test(ml))types.push('flood');
+  if(/fire|burning/.test(ml))types.push('fire');
+  if(/trapped|stuck|help|sos/.test(ml))types.push('trapped');
+  if(/medical|injur/.test(ml))types.push('medical');
+  if(/earthquake|quake/.test(ml))types.push('earthquake');
+  if(/landslide|mudslide/.test(ml))types.push('landslide');
+  const LOCS=Object.keys(CITY_INFO);
+  let loc=null,lat=null,lng=null;
+  const COORDS={Mumbai:[19.076,72.878],Delhi:[28.614,77.209],Chennai:[13.083,80.271],Wayanad:[11.685,76.132],Kochi:[9.931,76.267],Shimla:[31.105,77.173],Guwahati:[26.145,91.736],Uttarakhand:[30.067,79.019],Imphal:[24.817,93.937]};
+  for(const l of [...LOCS,'Kerala','Maharashtra','Assam','Odisha','Bihar','Uttarakhand','Tamil Nadu']){
+    if(ml.includes(l.toLowerCase())){
+      loc=l;
+      const co=COORDS[l];
+      if(co){lat=co[0]+Math.random()*.1-.05;lng=co[1]+Math.random()*.1-.05;}
+      break;
+    }
+  }
+  const sev=types.length>2?3:types.length>0?2:1;
+  return{is_distress:types.length>0||/help|sos|emergency/.test(ml),types:types.length?types:['general'],location:loc,lat,lng,severity:sev,priority:sev===3?'P1-CRITICAL':sev===2?'P2-HIGH':'P3-MODERATE',confidence:Math.min(99,types.length*30+sev*10+15),estimated_victims:sev*15+Math.floor(Math.random()*20),response_eta_mins:sev===3?20:45,recommended_actions:types.includes('flood')?['Deploy NDRF flood rescue team','Activate water pumping stations','Evacuate low-lying areas','Position helicopters']:['Dispatch emergency response team','Aerial survey via drone','Alert District EOC','Coordinate with police'],incident_id:`INC-DEMO-${Date.now().toString().slice(-6)}`,auto_alert_sent:true};
+}
+function pinSOS(d,msg){
+  addSOSPin(d.lat,d.lng,d.location,d.types,d.priority);
+  incidentCount++;
+  document.getElementById('incNum').textContent=incidentCount;
+  document.getElementById('incTime').textContent=new Date().toLocaleTimeString('en-IN',{hour12:false});
+  incidentLog.unshift({d,msg,t:new Date().toLocaleTimeString('en-IN',{hour12:false})});
+  const log=document.getElementById('incidentLog');
+  log.innerHTML=incidentLog.slice(0,6).map(inc=>`
+    <div style="padding:5px;background:var(--panel3);border:1px solid rgba(255,34,68,.25);border-radius:3px;margin-bottom:4px">
+      <div style="font-size:8px;color:var(--red)">${inc.d.priority} · ${inc.t}</div>
+      <div style="font-size:9px;color:var(--text2);margin-top:1px">${inc.d.location||'Location unknown'} — ${inc.d.types.join(', ')}</div>
+    </div>`).join('');
+  showBanner(`🆘 ${d.priority}: ${d.types.join('+')} detected in ${d.location||'unknown location'}. Response dispatched.`,'alert');
+}
+function renderSOS(d,msg){
+  const el=document.getElementById('sosResult');
+  el.classList.add('show');
+  if(!d.is_distress){el.innerHTML=`<div style="color:var(--green);font-family:var(--mono);font-size:11px">✓ No distress detected in this message.</div>`;return;}
+  const pcls=d.priority.startsWith('P1')?'p1':d.priority.startsWith('P2')?'p2':'p3';
+  el.innerHTML=`<div class="fi">
+    <span class="priority-tag ${pcls}">⚠ ${d.priority}</span>
+    ${d.incident_id?`<span style="font-family:var(--mono);font-size:8px;color:var(--text4);margin-left:6px">${d.incident_id}</span>`:''}
+    <div class="kv"><span class="kv-k">Distress Types</span><span class="kv-v red">${d.types.join(', ')}</span></div>
+    <div class="kv"><span class="kv-k">Location</span><span class="kv-v">${d.location||'Not extracted'}</span></div>
+    <div class="kv"><span class="kv-k">Confidence</span><span class="kv-v">${d.confidence}%</span></div>
+    <div class="kv"><span class="kv-k">Est. Victims</span><span class="kv-v orange">${d.estimated_victims}</span></div>
+    <div class="kv"><span class="kv-k">Response ETA</span><span class="kv-v green">${d.response_eta_mins} mins</span></div>
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:7px 0 4px;letter-spacing:2px">RECOMMENDED ACTIONS</div>
+    ${(d.recommended_actions||[]).map(a=>`<div style="font-family:var(--mono);font-size:9px;color:var(--text2);padding:2px 0">▸ ${a}</div>`).join('')}
+    ${d.auto_alert_sent?`<div style="margin-top:6px;color:var(--green);font-family:var(--mono);font-size:8px">✓ Auto-dispatch: NDRF · SDRF · District Collector · Medical Emergency</div>`:''}
+    ${d.lat?`<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:3px">📍 ${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</div>`:''}
+  </div>`;
+}
+
+// ── CHAT ─────────────────────────────────────────────────────────────────────
+function setMode(m){
+  chatMode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('mode-'+m)?.classList.add('sel');
+}
+async function sendChat(){
+  const inp=document.getElementById('chatIn');
+  const msg=inp.value.trim(); if(!msg)return;
+  inp.value='';
+  appendMsg('u',msg);
+  showTyping(true);
+  chatHistory.push({role:'user',content:msg});
+  const ctx=currentRisks?{risks:currentRisks.risks,overall:currentRisks.overall,level:currentRisks.level,dominant:currentRisks.dominant}:null;
+  try{
+    const r=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,city:currentCity,context:ctx,history:chatHistory.slice(-8),mode:chatMode})});
+    const d=await r.json();
+    showTyping(false);
+    appendMsg('a',d.response);
+    chatHistory.push({role:'assistant',content:d.response});
+  }catch{
+    showTyping(false);
+    const fb=fallbackChat(msg);
+    appendMsg('a',fb);
+    chatHistory.push({role:'assistant',content:fb});
+  }
+}
+function qChat(m){document.getElementById('chatIn').value=m;sendChat();switchTab('chat')}
+function fallbackChat(m){
+  const ml=m.toLowerCase(),c=currentCity||'India';
+  if(/flood/.test(ml))return`🌊 **Flood Protocol — ${c}**\n\n• Deploy NDRF teams immediately\n• Activate water pumping stations\n• Open relief shelters at schools/stadiums\n• Issue public alert via All India Radio\n• Disable electrical supply in flood zones\n\n📞 NDRF: 011-23438252 | Flood Control: 1800-180-5656\n\n*Start backend with GROQ_API_KEY for full AI responses.*`;
+  if(/cyclone/.test(ml))return`🌀 **Cyclone Protocol — ${c}**\n\n• Evacuate coastal areas within 5km\n• Secure fishing vessels in harbor\n• Open cyclone shelters\n• Deploy Coast Guard teams\n\n📞 Coast Guard: 1554 | NDRF: 011-23438252`;
+  if(/earthquake/.test(ml))return`⚡ **Earthquake Protocol**\n\n• Deploy NDRF USAR teams\n• Heavy machinery for rubble clearing\n• Medical triage on-site\n• Search dogs and thermal cameras\n\n📞 NDRF: 011-23438252 | NDRMA: 011-26701700`;
+  if(/sitrep|briefing|brief/.test(ml))return`📋 **SITREP — ${c}**\n\n**Status:** ${currentRisks?currentRisks.level:'No analysis run'}\n**Risk:** ${currentRisks?currentRisks.overall+'%':'—'}\n**Primary Threat:** ${currentRisks?currentRisks.dominant?.toUpperCase():'—'}\n\nRun ANALYZE for updated data, then ask again for full SITREP.`;
+  if(/safe|risk|status/.test(ml))return currentRisks?`📊 **Safety Status — ${c}**\n\nRisk Index: **${currentRisks.overall}%** (${currentRisks.level})\nPrimary Threat: **${currentRisks.dominant?.toUpperCase()}**\n\n${currentRisks.level==='CRITICAL'?'🔴 EVACUATE NOW':currentRisks.level==='HIGH'?'🟠 Prepare emergency kit. Monitor alerts.':currentRisks.level==='MODERATE'?'🟡 Stay informed. No immediate action.':'🟢 Normal conditions.'}`:
+    'Run a **Risk Analysis** first (select city + click ANALYZE), then ask again.';
+  return`🤖 **IRIS v4.0 — Disaster Intelligence System**\n\nI can help with:\n• Risk analysis & safety status\n• Disaster response protocols\n• Evacuation planning\n• Resource allocation\n• Historical disaster data\n\n*Connect GROQ_API_KEY for full LLaMA-3 AI responses.*`;
+}
+function appendMsg(role,content){
+  const box=document.getElementById('chatBox');
+  const typing=document.getElementById('typing');
+  const d=document.createElement('div');
+  d.className=`msg ${role} fi`;
+  const t=new Date().toLocaleTimeString('en-IN',{hour12:false,hour:'2-digit',minute:'2-digit'});
+  d.innerHTML=`<div class="msg-meta">${role==='u'?'You':'IRIS AI'} · ${t}</div><div>${content.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}</div>`;
+  box.insertBefore(d,typing);
+  box.scrollTop=box.scrollHeight;
+}
+function showTyping(v){document.getElementById('typing').className=v?'typing show':'typing'}
+
+// ── FORECAST ─────────────────────────────────────────────────────────────────
+async function loadForecast(){
+  const city=document.getElementById('fcCity')?.value||'Mumbai';
+  const hours=parseInt(document.getElementById('fcHours')?.value||72);
+  try{
+    const r=await fetch(API+'/forecast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city,hours_ahead:hours})});
+    const d=await r.json();
+    renderForecast(d,city);
+  }catch{renderForecastDemo(city,hours);}
+}
+function renderForecastDemo(city,hours){
+  const pts=[],flood=[],fire=[],cyclone=[],overall=[];
+  for(let i=0;i<=hours;i+=3){
+    const base=42+Math.sin(i*.2)*14+Math.cos(i*.09)*7;
+    pts.push(i===0?'Now':`+${i}h`);
+    flood.push(Math.round(Math.max(5,Math.min(90,base+Math.random()*8))));
+    fire.push(Math.round(Math.max(5,Math.min(85,base*.6+Math.random()*12))));
+    cyclone.push(Math.round(Math.max(3,Math.min(80,base*.4+Math.random()*10))));
+    overall.push(Math.round(Math.max(5,Math.min(90,base+Math.random()*6))));
+  }
+  buildFCChart(pts,flood,fire,cyclone,overall);
+  const max=Math.max(...overall),idx=overall.indexOf(max);
+  document.getElementById('fcPeak').innerHTML=`<div class="kv"><span class="kv-k">Peak Risk</span><span class="kv-v orange">${max}% at ${pts[idx]}</span></div><div class="kv"><span class="kv-k">Season</span><span class="kv-v">${['','','','','Pre-Monsoon','Pre-Monsoon','Monsoon','Monsoon','Monsoon','Post-Monsoon','Cyclone Season','Cyclone Season','Winter'][new Date().getMonth()+1]||'—'}</span></div>`;
+  document.getElementById('fcStats').innerHTML=`<div class="fc-stat"><div class="fc-stat-num">${max}%</div><div class="fc-stat-label">Peak Risk</div></div><div class="fc-stat"><div class="fc-stat-num">${Math.round(overall.reduce((a,b)=>a+b,0)/overall.length)}%</div><div class="fc-stat-label">Avg Risk</div></div><div class="fc-stat"><div class="fc-stat-num">${overall.filter(x=>x>60).length}</div><div class="fc-stat-label">High-Risk Periods</div></div>`;
+}
+function renderForecast(d,city){
+  const pts=d.forecast.map(f=>f.label);
+  const flood=d.forecast.map(f=>f.risks.flood);
+  const fire=d.forecast.map(f=>f.risks.fire);
+  const cyclone=d.forecast.map(f=>f.risks.cyclone||0);
+  const overall=d.forecast.map(f=>f.overall);
+  buildFCChart(pts,flood,fire,cyclone,overall);
+  const pk=d.peak;
+  document.getElementById('fcPeak').innerHTML=`<div class="kv"><span class="kv-k">Peak Risk</span><span class="kv-v orange">${pk?.overall}% at ${pk?.label}</span></div><div class="kv"><span class="kv-k">Peak Time</span><span class="kv-v">${pk?.time}</span></div><div class="kv"><span class="kv-k">Season</span><span class="kv-v">${d.season}</span></div>`;
+  const avg=Math.round(overall.reduce((a,b)=>a+b,0)/overall.length);
+  document.getElementById('fcStats').innerHTML=`<div class="fc-stat"><div class="fc-stat-num">${pk?.overall||'—'}%</div><div class="fc-stat-label">Peak Risk</div></div><div class="fc-stat"><div class="fc-stat-num">${avg}%</div><div class="fc-stat-label">Average</div></div><div class="fc-stat"><div class="fc-stat-num">${overall.filter(x=>x>60).length}</div><div class="fc-stat-label">High Periods</div></div>`;
+}
+function buildFCChart(labels,flood,fire,cyclone,overall){
+  const ctx=document.getElementById('fcChart').getContext('2d');
+  if(fcChart)fcChart.destroy();
+  fcChart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Overall',data:overall,borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,.08)',tension:.4,borderWidth:2.5,pointRadius:0},
+      {label:'Flood',data:flood,borderColor:'#4488ff',borderDash:[4,3],tension:.4,borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'},
+      {label:'Fire',data:fire,borderColor:'#ff8c00',borderDash:[4,3],tension:.4,borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'},
+      {label:'Cyclone',data:cyclone,borderColor:'#ff4488',borderDash:[4,3],tension:.4,borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#7aaec8',font:{size:9,family:'Share Tech Mono'},boxWidth:20}}},
+      scales:{
+        x:{ticks:{color:'#3d6880',font:{size:8},maxTicksLimit:10},grid:{color:'#0d2236'}},
+        y:{min:0,max:100,ticks:{color:'#3d6880',font:{size:8}},grid:{color:'#0d2236'}}
+      }
+    }
+  });
+}
+
+// ── RESOURCES ─────────────────────────────────────────────────────────────────
+async function loadResources(){
+  const city=document.getElementById('resCity').value;
+  const type=document.getElementById('resType').value;
+  const sev=parseFloat(document.getElementById('resSev').value);
+  try{
+    const r=await fetch(API+'/resource-allocation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city,disaster_type:type,severity:sev})});
+    renderResources(await r.json());
+  }catch{
+    renderResources({city,disaster_type:type,severity:sev,
+      allocations:[
+        {resource:'NDRF Rescue Teams',count:4,deployment_time:'30 mins',priority:'IMMEDIATE',source:'Central Pool',total_cost:'₹8,00,000'},
+        {resource:'Rescue Boats',count:8,deployment_time:'45 mins',priority:'IMMEDIATE',source:'State Reserve',total_cost:'₹3,60,000'},
+        {resource:'Medical Teams',count:3,deployment_time:'20 mins',priority:'IMMEDIATE',source:'District Stock',total_cost:'₹4,50,000'},
+        {resource:'Relief Shelters',count:12,deployment_time:'60 mins',priority:'HIGH',source:'Rapid Mobilization',total_cost:'₹9,60,000'},
+        {resource:'Helicopters',count:2,deployment_time:'90 mins',priority:'HIGH',source:'Central Pool',total_cost:'₹1,00,00,000'},
+        {resource:'Relief Kits',count:5000,deployment_time:'120 mins',priority:'STANDARD',source:'State Reserve',total_cost:'₹75,00,000'},
+      ],
+      total_estimated_cost:'₹2,00,70,000',estimated_affected_pop:'45,000',
+      evacuation_radius_km:6.5,deployment_zones:['Zone A','Zone B','Zone C'],command_centre:`${city} District Collector Office`
+    });
+  }
+}
+function renderResources(d){
+  document.getElementById('resResult').innerHTML=`<div class="fi">
+    <div class="res-summary">
+      <div class="res-sum-card"><div class="res-sum-big" style="color:var(--red)">${d.estimated_affected_pop||'—'}</div><div class="res-sum-label">Affected Pop</div></div>
+      <div class="res-sum-card"><div class="res-sum-big" style="color:var(--orange)">${d.evacuation_radius_km||'—'}km</div><div class="res-sum-label">Evac Radius</div></div>
+      <div class="res-sum-card"><div class="res-sum-big" style="color:var(--yellow)">${d.total_estimated_cost||'—'}</div><div class="res-sum-label">Total Cost</div></div>
+      <div class="res-sum-card"><div class="res-sum-big" style="color:var(--cyan)">${(d.deployment_zones||[]).length}</div><div class="res-sum-label">Deploy Zones</div></div>
+    </div>
+    <div class="kv" style="margin-bottom:8px"><span class="kv-k">Command Centre</span><span class="kv-v" style="font-size:9px">${d.command_centre||'—'}</span></div>
+    <div class="res-list">
+      ${(d.allocations||[]).map(r=>`<div class="res-item">
+        <div class="res-left">
+          <div class="res-name">${r.resource}</div>
+          <div class="res-meta">⏱ ${r.deployment_time} · ${r.source||''}</div>
+          <div class="res-meta" style="color:${r.priority==='IMMEDIATE'?'var(--red)':r.priority==='HIGH'?'var(--orange)':'var(--text3)'}">${r.priority}</div>
+        </div>
+        <div class="res-right">
+          <div class="res-count">${r.count?.toLocaleString('en-IN')||'—'}</div>
+          <div class="res-unit">${r.total_cost||''}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── IMPACT ANALYSIS ──────────────────────────────────────────────────────────
+async function loadImpact(){
+  const city=document.getElementById('impCity').value;
+  const type=document.getElementById('impType').value;
+  const mag=parseFloat(document.getElementById('impMag').value);
+  const dur=parseInt(document.getElementById('impDur').value);
+  try{
+    const r=await fetch(API+'/impact-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city,disaster_type:type,magnitude:mag,duration_hours:dur})});
+    renderImpact(await r.json());
+  }catch{
+    const pop={Mumbai:20667656,Delhi:32941000,Chennai:10971108,Wayanad:825000}[city]||2000000;
+    const f=mag/100;const df=Math.min(3,dur/24);
+    renderImpact({city,disaster_type:type,magnitude:mag,duration_hours:dur,
+      estimated_casualties:`${Math.round(pop*f*.0002*df).toLocaleString('en-IN')}`,
+      displaced_persons:`${Math.round(pop*f*.04*df).toLocaleString('en-IN')}`,
+      infrastructure_damage_cr:`₹${Math.round(f*df*2000).toLocaleString('en-IN')} Cr`,
+      economic_loss_cr:`₹${Math.round(f*df*8000).toLocaleString('en-IN')} Cr`,
+      recovery_days:Math.max(3,Math.round(mag/14+dur/40)),
+      sector_impacts:{Housing:f*80,Transport:f*65,'Power Grid':f*55,Healthcare:f*45,Agriculture:f*72,Communication:f*40,'Water Supply':f*60,Education:f*35},
+      aid_requirements:{food_rations:`${Math.round(pop*f*.04*df*3).toLocaleString('en-IN')} packets/day`,water_litres:`${Math.round(pop*f*.04*df*15).toLocaleString('en-IN')} L/day`,medical_teams:Math.max(5,Math.round(pop*f*.0002*df/50)),shelter_units:Math.max(100,Math.round(pop*f*.04*df/8)),helicopters:Math.max(2,Math.round(mag/25))}
+    });
+  }
+}
+function renderImpact(d){
+  const sectors=d.sector_impacts||{};
+  document.getElementById('impResult').innerHTML=`<div class="fi">
+    <div class="impact-grid">
+      <div class="imp-card"><div class="imp-num">${d.estimated_casualties}</div><div class="imp-label">Est. Casualties</div></div>
+      <div class="imp-card"><div class="imp-num" style="color:var(--orange)">${d.displaced_persons}</div><div class="imp-label">Displaced</div></div>
+      <div class="imp-card"><div class="imp-num" style="color:var(--yellow);font-size:13px">${d.infrastructure_damage_cr}</div><div class="imp-label">Infra Damage</div></div>
+      <div class="imp-card"><div class="imp-num" style="color:var(--pink);font-size:13px">${d.economic_loss_cr}</div><div class="imp-label">Economic Loss</div></div>
+    </div>
+    <div class="kv"><span class="kv-k">Recovery Timeline</span><span class="kv-v orange">${d.recovery_days} days</span></div>
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:8px 0 5px;letter-spacing:2px">SECTOR IMPACT ANALYSIS</div>
+    ${Object.entries(sectors).map(([k,v])=>`<div class="sector-row">
+      <span class="sector-name">${k}</span>
+      <div class="sector-track"><div class="sector-fill" style="width:${Math.round(v)}%"></div></div>
+      <span class="sector-val">${Math.round(v)}%</span>
+    </div>`).join('')}
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:8px 0 5px;letter-spacing:2px">AID REQUIREMENTS</div>
+    ${Object.entries(d.aid_requirements||{}).map(([k,v])=>`<div class="kv"><span class="kv-k">${k.replace(/_/g,' ')}</span><span class="kv-v green">${typeof v==='number'?v.toLocaleString('en-IN'):v}</span></div>`).join('')}
+  </div>`;
+}
+
+// ── EVACUATION ───────────────────────────────────────────────────────────────
+async function loadEvac(){
+  const city=document.getElementById('evCity').value;
+  const type=document.getElementById('evType').value;
+  const sev=parseFloat(document.getElementById('evSev').value);
+  const pop=parseInt(document.getElementById('evPop').value);
+  try{
+    const r=await fetch(API+'/evacuation-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city,disaster_type:type,severity:sev,population_affected:pop})});
+    renderEvac(await r.json());
+  }catch{
+    renderEvac({city,disaster_type:type,severity:sev,total_to_evacuate:pop.toLocaleString('en-IN'),
+      estimated_completion_hrs:Math.max(4,Math.round(pop/5000)),
+      phases:[
+        {phase:1,label:'Immediate (0–2 hrs)',action:'Activate EOC. Issue SMS/Radio alerts. NDRF teams mobilized.',population:Math.round(pop*.3)},
+        {phase:2,label:'Evacuation (2–8 hrs)',action:'Deploy buses. Open 15+ relief shelters. Establish pickup points.',population:Math.round(pop*.5)},
+        {phase:3,label:'Rescue (8–24 hrs)',action:'Aerial survey. S&R in critical zones. Medical triage centres.',population:Math.round(pop*.15)},
+        {phase:4,label:'Relief (24–72 hrs)',action:'Full relief operations. Damage assessment. Service restoration.',population:Math.round(pop*.05)},
+      ],
+      evacuation_routes:[
+        {route:'NH-66',direction:'North',capacity_per_hr:2500,status:'OPEN'},
+        {route:'SH-17',direction:'East',capacity_per_hr:1200,status:'OPEN'},
+        {route:'City Ring Road',direction:'Bypass',capacity_per_hr:3500,status:'CONGESTED'},
+      ],
+      shelters:[
+        {name:`${city} Government School Complex`,capacity:2500,status:'OPEN'},
+        {name:`State Stadium Relief Centre`,capacity:8000,status:'OPEN'},
+        {name:`Community Hall Sector-A`,capacity:1500,status:'OPEN'},
+        {name:`College Ground`,capacity:3000,status:'PARTIAL'},
+      ],
+      emergency_contacts:{NDRF:'011-23438252',State_Control_Room:'1077',Police:'100',Ambulance:'108',Fire:'101'}
+    });
+  }
+}
+function renderEvac(d){
+  document.getElementById('evResult').innerHTML=`<div class="fi">
+    <div class="kv" style="margin-bottom:8px"><span class="kv-k">Total to Evacuate</span><span class="kv-v red">${d.total_to_evacuate}</span></div>
+    <div class="kv" style="margin-bottom:8px"><span class="kv-k">Est. Completion</span><span class="kv-v orange">${d.estimated_completion_hrs} hours</span></div>
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:8px 0 5px;letter-spacing:2px">EVACUATION PHASES</div>
+    ${(d.phases||[]).map(p=>`<div class="evac-phase">
+      <div class="phase-hdr"><span class="phase-num">Phase ${p.phase}: ${p.label}</span><span class="phase-pop">${p.population?.toLocaleString('en-IN')} people</span></div>
+      <div class="phase-text">${p.action}</div>
+    </div>`).join('')}
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:8px 0 5px;letter-spacing:2px">EVACUATION ROUTES</div>
+    ${(d.evacuation_routes||[]).map(r=>`<div class="route-item">
+      <div><div class="route-name">${r.route}</div><div style="font-family:var(--mono);font-size:8px;color:var(--text3)">${r.direction} · ${r.capacity_per_hr?.toLocaleString('en-IN')}/hr</div></div>
+      <div class="route-status ${r.status?.toLowerCase()}">${r.status}</div>
+    </div>`).join('')}
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:8px 0 5px;letter-spacing:2px">RELIEF SHELTERS</div>
+    ${(d.shelters||[]).map(s=>`<div class="shelter-item">
+      <div><div class="sh-name">${s.name}</div><div style="font-family:var(--mono);font-size:8px;color:var(--text3)">${s.status}</div></div>
+      <div class="sh-cap">Cap: ${s.capacity?.toLocaleString('en-IN')}</div>
+    </div>`).join('')}
+    <div style="font-family:var(--mono);font-size:8px;color:var(--cyan);margin:8px 0 5px;letter-spacing:2px">EMERGENCY CONTACTS</div>
+    <div class="helpline-grid">
+      ${Object.entries(d.emergency_contacts||{}).map(([k,v])=>`<div class="hl"><div class="hl-num">${v}</div><div class="hl-name">${k.replace(/_/g,' ')}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── ALERT & SITREP ───────────────────────────────────────────────────────────
+async function generateAlert(){
+  if(!currentRisks)return;
+  const city=document.getElementById('citySelect').value;
+  const dom=currentRisks.dominant;
+  const score=currentRisks.risks[dom]||currentRisks.overall;
+  try{
+    const r=await fetch(API+'/generate-alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({city,disaster_type:dom,severity:score})});
+    const d=await r.json();
+    showBanner(d.message,d.severity);
+    addFeedEntry({level:'ALERT',text:d.message,source:'IRIS ALERT',time:new Date().toLocaleTimeString('en-IN',{hour12:false})});
+  }catch{
+    showBanner(`⚠ ${score>70?'RED ALERT':'ORANGE WARNING'}: ${dom?.toUpperCase()} risk ${score.toFixed(0)}% in ${city}. Emergency response required.`,score>70?'critical':'high');
+  }
+}
+async function generateSITREP(){
+  if(!currentCity){alert('Select a city first');return;}
+  switchTab('chat');
+  document.getElementById('chatIn').value=`Generate a complete SITREP (Situation Report) for ${currentCity}`;
+  sendChat();
+}
+
+// ── FEED ─────────────────────────────────────────────────────────────────────
+const FEED_POOL=[
+  {level:'ALERT',text:c=>`IMD issues Orange alert for ${c}: Heavy rainfall forecast 200mm+ in next 24hrs.`,source:'IMD'},
+  {level:'UPDATE',text:c=>`NDRF team deployed to ${c}. Rescue operations underway. ${Math.floor(Math.random()*500+50)} persons evacuated.`,source:'NDRF'},
+  {level:'CLEAR', text:c=>`Flood waters receding in ${c}. Normalcy expected in 48 hours.`,source:'State EOC'},
+  {level:'ALERT',text:c=>`Cyclone watch active for ${c} coast. Fishing activity suspended.`,source:'IMD'},
+  {level:'IMD',  text:c=>`Doppler radar: intense convective activity near ${c}. Thunderstorm next 6hrs.`,source:'IMD'},
+  {level:'NDRF', text:c=>`NDRF Battalion-7 operational in ${c}. 3 rescue boats deployed.`,source:'NDRF'},
+  {level:'UPDATE',text:c=>`AQI in ${c}: ${Math.floor(Math.random()*200+150)}. Schools closed. Avoid outdoor activity.`,source:'CPCB'},
+  {level:'CLEAR', text:c=>`M${(Math.random()*2+3).toFixed(1)} earthquake near ${c}. No major damage. Monitoring aftershocks.`,source:'NCS'},
+  {level:'ALERT',text:c=>`Landslide warning for ${c} hill districts. Heavy rain expected 48hrs.`,source:'GSI'},
+  {level:'UPDATE',text:c=>`River levels at ${c} gauge: ${Math.floor(Math.random()*40+55)}% of danger mark.`,source:'CWC'},
+];
+const FEED_CITIES=['Mumbai','Chennai','Wayanad','Delhi','Kolkata','Bhubaneswar','Guwahati','Kochi','Uttarakhand','Patna'];
+function buildFeed(){
+  const entry=FEED_POOL[Math.floor(Math.random()*FEED_POOL.length)];
+  const city=FEED_CITIES[Math.floor(Math.random()*FEED_CITIES.length)];
+  addFeedEntry({level:entry.level,text:entry.text(city),source:entry.source,time:new Date().toLocaleTimeString('en-IN',{hour12:false})});
+}
+function addFeedEntry(e){
+  feedItems.unshift(e);
+  if(feedItems.length>25)feedItems.pop();
+  renderFeed();
+}
+function renderFeed(){
+  document.getElementById('feedList').innerHTML=feedItems.slice(0,15).map(f=>`
+    <div class="feed-item ${f.level} fi">
+      <div class="feed-top">
+        <span class="feed-badge ${f.level}">${f.level}</span>
+        <span class="feed-src">${f.source}</span>
+      </div>
+      <div class="feed-text">${f.text}</div>
+      <div class="feed-time">${f.time}</div>
+    </div>`).join('');
+}
+function refreshFeed(){buildFeed();buildFeed();}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(n){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    const tabs=['sos','chat','forecast','resources','impact','evac','feed'];
+    b.classList.toggle('act',tabs[i]===n);
+  });
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('act'));
+  document.getElementById('pane-'+n)?.classList.add('act');
+  if(n==='forecast')loadForecast();
+}
+
+// ── BANNER ────────────────────────────────────────────────────────────────────
+function showBanner(msg,type){
+  const b=document.getElementById('alertBanner');
+  document.getElementById('alertText').textContent=msg;
+  b.classList.remove('hidden');
+  const cols={critical:'linear-gradient(90deg,rgba(255,34,68,.95),rgba(180,0,20,.95))',high:'linear-gradient(90deg,rgba(255,140,0,.95),rgba(180,90,0,.95))',alert:'linear-gradient(90deg,rgba(255,34,68,.9),rgba(180,0,20,.9))'};
+  b.style.background=cols[type]||cols.high;
+  setTimeout(()=>b.classList.add('hidden'),12000);
+}
+function closeBanner(){document.getElementById('alertBanner').classList.add('hidden')}
+
+// ── startup feed ─────────────────────────────────────────────────────────────
+for(let i=0;i<6;i++) buildFeed();
+</script>
+</body>
+</html>
