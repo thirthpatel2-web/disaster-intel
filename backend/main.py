@@ -506,7 +506,7 @@ def get_groq_response(message: str, city: Optional[str], context: Optional[Dict]
 
     try:
         resp = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=900,
             temperature=0.65,

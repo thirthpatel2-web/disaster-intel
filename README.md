@@ -70,7 +70,7 @@ Interactive docs: `http://localhost:8000/docs`.
 
 - This is a **prototype and simulation**. Live alerts, the news feed, the all-cities risk overview and parts of the forecasts are **randomly generated** for demonstration, not pulled from IMD, NDMA or other real data feeds.
 - The city profiles (coordinates, population, elevation, seismic zone, rainfall) are static reference values.
-- The backend requests Groq's `llama3-70b-8192` model, which Groq has since retired. Until it's switched to a current model (for example `llama-3.3-70b-versatile`), the chat uses its rule-based fallback answers.
+- The AI analyst uses Groq's `llama-3.3-70b-versatile`; without a `GROQ_API_KEY` it answers with built-in rule-based responses.
 
 ## 👤 Author
 
